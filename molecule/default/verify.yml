@@ -1,0 +1,63 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Get user 'john' details
+      getent:
+        database: passwd
+        key: john
+      register: john
+
+    - name: Assert user 'john' exists, has correct home and UID
+      assert:
+        that:
+          - john.ansible_facts.getent_passwd.john is defined
+          - john.ansible_facts.getent_passwd.john[4] == "/better-place/john"
+          - john.ansible_facts.getent_passwd.john[1] == "1234"
+        fail_msg: "User 'john' does not exist or has incorrect home/UID"
+        success_msg: "User 'john' exists with correct home and UID"
+
+    - name: Check if nice_script.sh exists in john home directory
+      stat:
+        path: /better-place/john/nice-script.sh
+      register: file_stat
+
+    - name: Assert that the file exists
+      assert:
+        that:
+          - file_stat.stat.exists
+        fail_msg: "Nice Script does not exist"
+        success_msg: "Nice Script exists"
+
+    - name: Check whether an entry exists for john in /etc/sudoers
+      command: 'grep -Fx "john ALL=(ALL) NOPASSWD: /usr/bin/whoami" /etc/sudoers'
+      register: checksudoers
+      check_mode: no
+      ignore_errors: yes
+
+    - name: Assert the specific line exists in /etc/sudoers for john for whoami command
+      ansible.builtin.assert:
+        that:
+          - checksudoers.rc == 0
+        fail_msg: "The required sudoers line for user 'john' is not present"
+        success_msg: "The required sudoers line for user 'john' is present"
+
+
+    - name: Gather the package facts
+      ansible.builtin.package_facts:
+        manager: apt
+
+#    - name: Display all installed packages
+#      ansible.builtin.debug:
+#        var: ansible_facts.packages
+
+    - name: Assert that Vim, Tmux and Terraform are installed
+      ansible.builtin.assert:
+        that:
+          - "'vim' in ansible_facts.packages"
+          - "'tmux' in ansible_facts.packages"
+          - "'terraform' in ansible_facts.packages"
+        fail_msg: "Packages are not installed"
+        success_msg: "Packages are installed"

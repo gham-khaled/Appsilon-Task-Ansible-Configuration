@@ -1,0 +1,68 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Copy nice-script.sh to the skeleton directory
+      copy:
+        src: nice-script.sh
+        dest: /etc/skel/nice-script.sh
+        mode: '0755'
+
+    - name: Ensure /better-place directory exists
+      file:
+        path: /better-place
+        state: directory
+
+    - name: Create user john
+      user:
+        name: john
+        home: /better-place/john
+        uid: 1234
+
+#    - name: Allow john to run whoami with sudo without a password
+#      lineinfile:
+#        path: /etc/sudoers
+#        line: 'john ALL=(ALL) NOPASSWD: /usr/bin/whoami'
+    - name: Allow john to run whoami with sudo without a password
+      community.general.sudoers:
+        name: allow-whoami-john
+        state: present
+        user: john
+        commands: /usr/bin/whoami
+
+    - name: APT Update and upgrade
+      apt:
+        upgrade: yes
+        update_cache: yes
+
+    - name: Install tmux and vim
+      apt:
+        pkg:
+          - tmux
+          - vim
+        state: present
+
+    - name: Terraform deps
+      apt:
+        update_cache: true
+        state: present
+        pkg:
+          - gnupg
+          - software-properties-common
+
+    - name: Add Terraform apt key
+      ansible.builtin.apt_key:
+        url: https://apt.releases.hashicorp.com/gpg
+        keyring: /usr/share/keyrings/terraform.gpg
+        state: present
+
+    - name: Add Terraform apt repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/usr/share/keyrings/terraform.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main
+        state: present
+
+    - name: Install Terraform
+      apt:
+        update_cache: true
+        state: present
+        pkg: terraform
